@@ -1,0 +1,7 @@
+PRETRAIN/*
+
+**/__pycache__/
+
+DATASET/*
+
+.vscode/*
