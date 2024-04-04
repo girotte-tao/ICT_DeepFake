@@ -203,3 +203,4 @@ if __name__ == '__main__':
                 paths.append(img_path)
     json.dump(paths, open('./DATASET/paths/out.json', 'w'))
 
+#
