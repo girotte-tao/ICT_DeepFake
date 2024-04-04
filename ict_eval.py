@@ -12,6 +12,7 @@ import argparse
 import math
 import time
 import bcolz
+import numpy as np
 from pathlib import Path
 import torch.nn as nn
 from torch.utils.data import Dataset, ConcatDataset, DataLoader
@@ -280,18 +281,19 @@ class face_learner(object):
         torch.cuda.empty_cache()
         return epoch
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='for ICT DeepFake detection')
 
     parser.add_argument("--net_mode", default='ict_base', type=str)
     parser.add_argument("--aug_test", action='store_true', help='test with perturped input')
     parser.add_argument("-name", "--dump_name", default='mask_test', type=str)
-    parser.add_argument("--local_rank", type=int)
+    parser.add_argument("--local_rank", default=0, type=int)
 
     args = parser.parse_args()
 
     torch.cuda.set_device(args.local_rank)
-    world_size = int(os.environ["WORLD_SIZE"])
+    world_size = 1
     args.distributed = world_size > 1
     print("world size is {}".format(world_size))
     if args.distributed:
@@ -306,4 +308,3 @@ if __name__ == '__main__':
     args.model_path = os.path.join('./PRETRAIN/', args.dump_name)
     
     learner = face_learner(args)
-

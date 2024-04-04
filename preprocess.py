@@ -176,10 +176,10 @@ if __name__ == '__main__':
 
     resize = 1
     save_idx = 0
-    input_path = './DATASET/input/true'
+    input_path = './DATASET/input/false'
     output_path = './DATASET/align_output'
     json_path = './DATASET/paths'
-    tar_path = './DATASET/images'
+    tar_path = './DATASET/images_false'
     
     if not os.path.exists(tar_path):
         os.makedirs(tar_path)
@@ -201,6 +201,6 @@ if __name__ == '__main__':
             if find_face:
                 save_idx += 1
                 paths.append(img_path)
-    json.dump(paths, open('./DATASET/paths/out.json', 'w'))
+    json.dump(paths, open('./DATASET/paths/out_false.json', 'w'))
 
 #

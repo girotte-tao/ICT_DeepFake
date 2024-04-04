@@ -2,11 +2,10 @@
 
 mkdir -p ./OUTPUT/log/
 
-NAME=ICT_BASE
+NAME=ict_base
 TIME=EVAL-$(date +"%Y%m%d_%H%M%S")
-CUDA_VISIBLE_DEVICES=0 python -u -m torch.distributed.launch --nproc_per_node=1 \
-    ict_eval.py \
-    -name ${NAME} \
+CUDA_VISIBLE_DEVICES=0 python -u ict_eval.py \
+    --net_mode ${NAME} \
     --aug_test \
-    2>&1 | tee  ./OUTPUT/log/${NAME}_${TIME}.log
-
+    -name ICT_BASE \
+    2>&1 | tee ./OUTPUT/log/${NAME}_${TIME}.log

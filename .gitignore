@@ -5,3 +5,5 @@ PRETRAIN/*
 DATASET/*
 
 .vscode/
+
+OUTPUT/*
