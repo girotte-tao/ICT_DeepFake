@@ -176,9 +176,14 @@ if __name__ == '__main__':
 
     resize = 1
     save_idx = 0
-    input_path = './DATASET/input'
+    input_path = './DATASET/input/true'
     output_path = './DATASET/align_output'
     json_path = './DATASET/paths'
+    tar_path = './DATASET/images'
+    
+    if not os.path.exists(tar_path):
+        os.makedirs(tar_path)
+        
     video_list = os.listdir(input_path)
     paths = []
     for video in tqdm(video_list):
