@@ -2,7 +2,9 @@ import torch
 from torch import optim
 import numpy as np
 from tqdm import tqdm
-
+import random
+import shutil
+import cv2
 from matplotlib import pyplot as plt
 plt.switch_backend('agg')
 from PIL import Image
@@ -39,7 +41,7 @@ def print_rank(*strs):
         print (strs)
       
 class face_learner(object):
-    def __init__(self, conf, inference=False):
+    def __init__(self, conf, inference=False, img_path=None):
         #print(conf)
         self.rank = dist.get_rank()
         self.world_size = dist.get_world_size()
@@ -55,13 +57,13 @@ class face_learner(object):
             exit(0)
 
         print_rank('Backbone {} model generated'.format(conf.net_mode))
-    
-        if not inference:
-            self.eval_transform = trans.Compose([
+        self.eval_transform = trans.Compose([
                 trans.Resize((112, 112)),
                 trans.ToTensor(),
                 trans.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
             ])
+
+        if not inference:
 
             self.step = -1
             self.start_epoch = 0
@@ -91,7 +93,9 @@ class face_learner(object):
             #self.bulid_all(conf)
             self.eval_all(conf)
             exit(0)
-
+        else:
+            res = self.inference(conf, img_path)
+            print(res)
                     
     def eval_all(self, conf, per='None'):
         if conf.aug_test:
@@ -280,6 +284,81 @@ class face_learner(object):
         del new_state_dict
         torch.cuda.empty_cache()
         return epoch
+    
+    def inference(self, conf, img_path):
+        imgs = self.get_img(img_path).unsqueeze(0)
+        query = self.load_ref(conf, 1)
+        print ('Load Ref Finished:', query['inner'].shape)
+        self.model = self.model.cuda()
+        self.model.eval()
+        imgs = imgs.cuda()
+        with torch.no_grad():
+            inner_emb, outer_emb = self.model(imgs)
+            
+        res = self.is_same_entity(inner_emb, outer_emb, threshold=0.0300)
+        return res[0]
+    
+    def calculate_distance(self, embedding1, embedding2):
+        if embedding1.is_cuda:
+            embedding1 = embedding1.cpu()
+        if embedding2.is_cuda:
+            embedding2 = embedding2.cpu()
+            
+        embedding1 = embedding1.numpy()
+        embedding2 = embedding2.numpy()
+        
+        diff = np.subtract(embedding1, embedding2)
+        distance = np.sum(np.square(diff), axis=1)
+        return distance
+
+    def is_same_entity(self, embedding1, embedding2, threshold=0.2900):
+        distance = self.calculate_distance(embedding1, embedding2)
+        print('distance:', distance)
+        return distance <= threshold
+    
+    def get_img(self, path):
+        img = Image.open(path)
+        img = self.eval_transform(img)
+        return img
+    
+
+def extract_random_frame(video_path, tmp_dir='tmp', img_name='random_frame.png'):
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        print("Error: Cannot open video file.")
+        return None
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    random_frame = random.randint(0, frame_count - 1)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, random_frame)
+    ret, frame = cap.read()
+    if not ret:
+        print("Error: Cannot read the frame.")
+        return None
+    if not os.path.exists(tmp_dir):
+        os.makedirs(tmp_dir)
+    img_path = os.path.join(tmp_dir, img_name)
+    cv2.imwrite(img_path, frame)
+    cap.release()
+    return img_path
+
+def extract_middle_frame(video_path, tmp_dir='tmp', img_name='middle_frame.png'):
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        print("Error: Cannot open video file.")
+        return None
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    middle_frame = frame_count // 2
+    cap.set(cv2.CAP_PROP_POS_FRAMES, middle_frame)
+    ret, frame = cap.read()
+    if not ret:
+        print("Error: Cannot read the frame.")
+        return None
+    if not os.path.exists(tmp_dir):
+        os.makedirs(tmp_dir)
+    img_path = os.path.join(tmp_dir, img_name)
+    cv2.imwrite(img_path, frame)
+    cap.release()
+    return img_path
 
 
 if __name__ == '__main__':
@@ -287,8 +366,9 @@ if __name__ == '__main__':
 
     parser.add_argument("--net_mode", default='ict_base', type=str)
     parser.add_argument("--aug_test", action='store_true', help='test with perturped input')
-    parser.add_argument("-name", "--dump_name", default='mask_test', type=str)
+    parser.add_argument("-name", "--dump_name", default='ICT_BASE', type=str)
     parser.add_argument("--local_rank", default=0, type=int)
+    parser.add_argument("--video_path", default='', type=str)
 
     args = parser.parse_args()
 
@@ -307,4 +387,20 @@ if __name__ == '__main__':
 
     args.model_path = os.path.join('./PRETRAIN/', args.dump_name)
     
-    learner = face_learner(args)
+    # video_path = '/userhome/cs2/u3619712/MRDF/data/FakeAVCeleb_v1.2/FakeAVCeleb/RealVideo-RealAudio/Asian-South/men/id00032/00028.mp4'
+    video_path = sys.argv[2]
+    img_path = extract_middle_frame(video_path)
+    # learner = face_learner(args)
+    
+    try:
+        tmp_dir = 'tmp'
+        img_name = 'random_frame.png'
+        img_path = extract_random_frame(video_path, tmp_dir, img_name)
+        
+        if img_path:
+            learner = face_learner(args, True, img_path)
+
+    finally:
+        if os.path.exists(tmp_dir):
+            shutil.rmtree(tmp_dir)
+        # print(f"Deleted temporary directory: {tmp_dir}")
